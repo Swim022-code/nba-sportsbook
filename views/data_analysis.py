@@ -2,7 +2,7 @@
 
 import streamlit as st
 
-from src import charts, eda, llm
+from src import charts, eda, llm, style
 from src.data_fetcher import SCOREBOARD_URL
 from src.ui import backtest_summary, get_backtest, get_games, get_ratings, season_label, sidebar, stream_llm
 
@@ -19,8 +19,7 @@ def ai_explain(section: str, data: dict, key: str) -> None:
             stream_llm(llm.explain_findings, section, data)
 
 
-st.title("📊 Exploratory Data Analysis")
-st.caption("Use the filters to slice the data; every table, chart and insight below updates.")
+style.hero("Data Analysis", "Exploratory analysis of every NBA game since Oct 2025, and an honest test of our odds model", "📊")
 
 # ---------------------------------------------------------------- filters
 seasons_all = sorted(games["season"].unique())
@@ -72,7 +71,7 @@ with tabs[0]:
 
     st.subheader("Data source & structure")
     st.markdown(f"""
-| | |
+| Item | Details |
 |---|---|
 | **API** | ESPN public NBA scoreboard: `{SCOREBOARD_URL}` (free, no key) |
 | **Format** | JSON: `events[] → competitions[0] → competitors[home, away] → statistics[]` |

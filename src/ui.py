@@ -103,6 +103,11 @@ def _fmt_refresh(iso: str) -> str:
         return iso
 
 
+def house_edge_on() -> bool:
+    """Whether the sportsbook adds its margin (sidebar switch; on by default)."""
+    return st.session_state.get("house_edge", True)
+
+
 # ---------------------------------------------------------------- sidebar
 def _login(name: str) -> None:
     db.init_db()
@@ -118,7 +123,9 @@ def sidebar() -> str | None:
         _login(st.query_params["user"])
 
     with st.sidebar:
-        st.header("🏀 Account")
+        st.markdown('<div class="sb-brand"><span>🏀</span>NBA Mock Sportsbook</div>', unsafe_allow_html=True)
+        st.caption("Fake money only. Nothing real is wagered.")
+        st.subheader("Account")
         user = st.session_state.get("user")
         if user:
             st.metric(f"Balance ({CURRENCY})", money(db.get_balance(user)))
@@ -140,7 +147,14 @@ def sidebar() -> str | None:
                         st.error("Use 2-24 letters, numbers, _ . or -")
 
         st.divider()
-        st.header("⚙️ Settings")
+        st.subheader("Settings")
+        # Persist across pages: copy the saved preference into the widget's key before drawing it.
+        st.session_state["_house_edge_widget"] = house_edge_on()
+        st.toggle("🏦 House edge", key="_house_edge_widget",
+                  on_change=lambda: st.session_state.update(house_edge=st.session_state["_house_edge_widget"]),
+                  help="ON: realistic book. Spreads/totals at -110 and moneylines with a ~4.5% margin, "
+                       "so the house profits over time. OFF: fair odds (even money, true probabilities): "
+                       "zero expected profit for either side. Applies to new bets.")
         options = [*llm.MODEL_OPTIONS, "Other..."]
         current = st.session_state.get("model", llm.DEFAULT_MODEL)
         choice = st.selectbox("Claude model", options,

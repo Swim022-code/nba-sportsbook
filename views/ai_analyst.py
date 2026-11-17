@@ -3,16 +3,25 @@
 import streamlit as st
 
 from src import database as db
-from src import eda, llm
+from src import eda, llm, style
 from src.betting import VOID_STATUSES, betting_summary
 from src.odds_model import make_lines
-from src.ui import backtest_summary, get_backtest, get_games, get_ratings, season_label, sidebar, stream_llm
+from src.ui import (
+    backtest_summary,
+    get_backtest,
+    get_games,
+    get_ratings,
+    house_edge_on,
+    season_label,
+    sidebar,
+    stream_llm,
+)
 
 games = get_games()
 user = sidebar()
 ratings = get_ratings(games)
 
-st.title("🤖 AI Analyst")
+style.hero("AI Analyst", "Claude explains our data and answers your questions, grounded in the numbers this app computes", "🤖")
 st.caption(f"Powered by Claude through the Anthropic API (model `{st.session_state.get('model', llm.DEFAULT_MODEL)}`). "
            "The AI sees only the data summaries this app computes (expand *Data sent to the model* to see "
            "them), so its answers are grounded in our analysis rather than the internet.")
@@ -49,7 +58,7 @@ def latest_records() -> dict:
 upcoming = games[~games["completed"] & ~games["status"].isin(VOID_STATUSES)].sort_values("tipoff_utc").head(15)
 slate = []
 for g in upcoming.itertuples():
-    ln = make_lines(ratings, g.home_team, g.away_team, g.neutral_site)
+    ln = make_lines(ratings, g.home_team, g.away_team, g.neutral_site, house_edge=house_edge_on())
     slate.append({"game": f"{g.away_team} @ {g.home_team}", "date": str(g.game_date.date()),
                   "home_win_prob": round(ln["p_home"], 3), "home_moneyline": ln["home_ml"],
                   "away_moneyline": ln["away_ml"], "home_spread": ln["home_spread"], "total": ln["total"]})
@@ -60,6 +69,8 @@ context = {
     "power_ratings": {t: {"net_rating": round(float(v), 2), "record": records.get(t)}
                       for t, v in ratings.ratings.items()},
     "home_court_advantage_pts": round(ratings.home_court, 2),
+    "odds_mode": "house edge ON: spreads/totals -110, ~4.5% moneyline margin" if house_edge_on()
+                 else "fair odds: even money spreads/totals, no margin",
     "upcoming_games_with_lines": slate,
     "model_backtest": backtest_summary(get_backtest(games)),
 }

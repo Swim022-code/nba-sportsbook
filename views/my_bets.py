@@ -5,14 +5,15 @@ import plotly.express as px
 import streamlit as st
 
 from src import database as db
+from src import style
 from src.betting import betting_summary
 from src.data_fetcher import EASTERN
-from src.ui import CURRENCY, fmt_line, fmt_odds, get_games, money, sidebar
+from src.ui import CURRENCY, fmt_line, fmt_odds, get_games, house_edge_on, money, sidebar
 
 games = get_games()  # also settles any finished bets
 user = sidebar()
 
-st.title("🎟️ My Bets")
+style.hero("My Bets", "Your open and settled bets, results and profit", "🎟️", style.edge_badge(house_edge_on()))
 if not user:
     st.info("👈 Log in from the sidebar to see your bets.")
     st.stop()
@@ -73,6 +74,10 @@ else:
         fig.update_xaxes(dtick=1)
         fig.add_hline(y=0, line_dash="dot", line_color="#898781")
         st.plotly_chart(fig, width="stretch")
+
+if house_edge_on():  # the house's books are shown only in house-edge mode
+    style.house_panel(db.house_summary(), CURRENCY)
+    st.write("")
 
 st.subheader("🏆 Leaderboard")
 st.dataframe(db.leaderboard(), hide_index=True, width="stretch",
