@@ -11,6 +11,7 @@ Rules
   Win  -> balance += stake * decimal_odds
   Push -> stake refunded
   Loss -> nothing returned
+  Void -> game postponed/canceled: stake refunded
 """
 
 from __future__ import annotations
@@ -23,6 +24,7 @@ from src import database as db
 from src.odds_model import payout_for
 
 BET_TYPES = ("moneyline", "spread", "total")
+VOID_STATUSES = {"STATUS_POSTPONED", "STATUS_CANCELED", "STATUS_SUSPENDED", "STATUS_FORFEIT"}
 MAX_STAKE = 10_000
 
 
@@ -99,19 +101,26 @@ def grade_bet(bet: dict, home_team: str, home_score: float, away_score: float) -
 
 
 def settle_bets(games: pd.DataFrame, db_path=None) -> int:
-    """Grade every pending bet whose game is final. Returns the number settled."""
+    """Grade every pending bet whose game is final (or void it if the game was
+    postponed/canceled). Returns the number of bets settled."""
     pending = db.load_bets(status="pending", db_path=db_path)
     if pending.empty or games.empty:
         return 0
+    status = games["status"] if "status" in games else pd.Series("", index=games.index)
     final = games[games["completed"]].set_index("game_id")
+    void_ids = set(games.loc[status.isin(VOID_STATUSES) & ~games["completed"], "game_id"])
     settled = 0
     with db.connect(db_path) as conn:
         for bet in pending.to_dict("records"):
-            if bet["game_id"] not in final.index:
+            if bet["game_id"] in final.index:
+                g = final.loc[bet["game_id"]]
+                result = grade_bet(bet, g["home_team"], g["home_score"], g["away_score"])
+            elif bet["game_id"] in void_ids:
+                result = "void"
+            else:
                 continue
-            g = final.loc[bet["game_id"]]
-            result = grade_bet(bet, g["home_team"], g["home_score"], g["away_score"])
-            payout = {"won": bet["potential_payout"], "push": bet["stake"], "lost": 0.0}[result]
+            payout = {"won": bet["potential_payout"], "push": bet["stake"],
+                      "void": bet["stake"], "lost": 0.0}[result]
             conn.execute(
                 "UPDATE bets SET status = ?, payout = ?, settled_at = ? WHERE bet_id = ?",
                 (result, payout, db.now_iso(), bet["bet_id"]),
@@ -126,7 +135,7 @@ def settle_bets(games: pd.DataFrame, db_path=None) -> int:
 def betting_summary(bets: pd.DataFrame) -> dict:
     """Headline numbers for a user's bet history."""
     if bets.empty:
-        return {"bets": 0, "pending": 0, "won": 0, "lost": 0, "push": 0,
+        return {"bets": 0, "pending": 0, "won": 0, "lost": 0, "push": 0, "void": 0,
                 "staked": 0.0, "returned": 0.0, "profit": 0.0, "roi": 0.0, "win_rate": 0.0}
     settled = bets[bets["status"] != "pending"]
     staked = float(settled["stake"].sum())
@@ -138,6 +147,7 @@ def betting_summary(bets: pd.DataFrame) -> dict:
         "won": int((bets["status"] == "won").sum()),
         "lost": int((bets["status"] == "lost").sum()),
         "push": int((bets["status"] == "push").sum()),
+        "void": int((bets["status"] == "void").sum()),
         "staked": staked,
         "returned": returned,
         "profit": returned - staked,

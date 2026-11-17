@@ -51,7 +51,7 @@ CREATE TABLE IF NOT EXISTS bets (
     american_odds INTEGER NOT NULL,
     stake REAL NOT NULL,
     potential_payout REAL NOT NULL,  -- stake + profit if it wins
-    status TEXT NOT NULL DEFAULT 'pending',  -- pending | won | lost | push
+    status TEXT NOT NULL DEFAULT 'pending',  -- pending | won | lost | push | void
     payout REAL DEFAULT 0,
     placed_at TEXT,
     settled_at TEXT

@@ -23,7 +23,8 @@ balance = db.get_balance(user)
 c = st.columns(5)
 c[0].metric("Balance", money(balance))
 c[1].metric("Open bets", s["pending"])
-c[2].metric("Record (W-L-P)", f"{s['won']}-{s['lost']}-{s['push']}")
+c[2].metric("Record (W-L-P)", f"{s['won']}-{s['lost']}-{s['push']}",
+            help="Wins - losses - pushes. Voided bets (postponed games) are refunded and not counted.")
 c[3].metric("Profit (settled)", money(s["profit"]))
 c[4].metric("ROI", f"{s['roi']:.1%}")
 
@@ -43,9 +44,9 @@ else:
     bets["final"] = bets.apply(lambda r: f"{r.away_team} {r.away_score:.0f} - {r.home_team} {r.home_score:.0f}"
                                if pd.notna(r.home_score) else "", axis=1)
 
-    status_filter = st.segmented_control("Show", ["all", "pending", "won", "lost", "push"], default="all")
+    status_filter = st.segmented_control("Show", ["all", "pending", "won", "lost", "push", "void"], default="all")
     view = bets if status_filter in (None, "all") else bets[bets["status"] == status_filter]
-    icons = {"pending": "⏳", "won": "✅", "lost": "❌", "push": "↩️"}
+    icons = {"pending": "⏳", "won": "✅", "lost": "❌", "push": "↩️", "void": "🚫"}
     view = view.assign(status=view["status"].map(lambda x: f"{icons[x]} {x}"))
     st.dataframe(
         view[["bet_id", "placed_at", "matchup", "bet", "stake", "potential_payout", "status", "payout", "final"]],
