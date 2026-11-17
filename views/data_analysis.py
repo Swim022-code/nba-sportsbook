@@ -95,7 +95,7 @@ with tabs[1]:
         if miss.empty:
             st.success(f"No missing values in {len(subset):,} rows.")
         else:
-            st.dataframe(miss, width="stretch", height=300)
+            st.dataframe(miss, width="stretch")
         st.caption(f"{len(subset):,} rows. Status counts: "
                    + ", ".join(f"{k.replace('STATUS_', '').title()} {v}" for k, v in subset["status"].value_counts().items()))
     with right:

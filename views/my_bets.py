@@ -6,6 +6,7 @@ import streamlit as st
 
 from src import database as db
 from src.betting import betting_summary
+from src.data_fetcher import EASTERN
 from src.ui import CURRENCY, fmt_line, fmt_odds, get_games, money, sidebar
 
 games = get_games()  # also settles any finished bets
@@ -48,12 +49,16 @@ else:
     view = bets if status_filter in (None, "all") else bets[bets["status"] == status_filter]
     icons = {"pending": "⏳", "won": "✅", "lost": "❌", "push": "↩️", "void": "🚫"}
     view = view.assign(status=view["status"].map(lambda x: f"{icons[x]} {x}"))
+    view = view.assign(placed=pd.to_datetime(view["placed_at"], utc=True).dt.tz_convert(EASTERN).dt.strftime("%b %d %I:%M %p"))
+    num = st.column_config.NumberColumn
     st.dataframe(
-        view[["bet_id", "placed_at", "matchup", "bet", "stake", "potential_payout", "status", "payout", "final"]],
+        view[["bet_id", "placed", "matchup", "bet", "stake", "potential_payout", "status", "payout", "final"]],
         hide_index=True, width="stretch",
-        column_config={"stake": st.column_config.NumberColumn(format="%.2f"),
-                       "potential_payout": st.column_config.NumberColumn("to win (total)", format="%.2f"),
-                       "payout": st.column_config.NumberColumn(format="%.2f")},
+        column_config={"bet_id": num("Bet #"), "placed": "Placed (ET)", "matchup": "Game", "bet": "Bet",
+                       "stake": num("Stake", format="%.2f"),
+                       "potential_payout": num("Returns if won", format="%.2f",
+                                               help="Stake + profit paid out if the bet wins"),
+                       "status": "Status", "payout": num("Paid out", format="%.2f"), "final": "Final score"},
     )
 
     settled = bets[bets["status"] != "pending"].sort_values("settled_at")
@@ -67,8 +72,9 @@ else:
 
 st.subheader("🏆 Leaderboard")
 st.dataframe(db.leaderboard(), hide_index=True, width="stretch",
-             column_config={"balance": st.column_config.NumberColumn(format="%.2f"),
-                            "at_risk": st.column_config.NumberColumn("open stakes", format="%.2f")})
+             column_config={"username": "Player", "balance": st.column_config.NumberColumn("Balance", format="%.2f"),
+                            "bets": "Bets", "wins": "Wins",
+                            "at_risk": st.column_config.NumberColumn("Open stakes", format="%.2f")})
 
 with st.expander("⚠️ Reset my account"):
     st.write(f"Deletes all your bets and resets your balance to {db.STARTING_BALANCE:,.0f} {CURRENCY}.")
