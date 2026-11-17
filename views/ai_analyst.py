@@ -104,19 +104,20 @@ with tab_chat:
     clicked = next((q for q, hit in zip(examples, clicks, strict=True) if hit), None)
 
     history = st.session_state.setdefault("chat_history", [])
-    for msg in history:
-        st.chat_message(msg["role"]).markdown(msg["content"])
-
+    conversation = st.container()  # messages render here, above the input box
     question = st.chat_input("Ask the AI analyst...", disabled=not llm.is_configured()) or clicked
-    if question:
-        st.chat_message("user").markdown(question)
-        with st.chat_message("assistant"):
-            answer = stream_llm(llm.chat, question, history, context)
-        if answer:
-            history += [{"role": "user", "content": question}, {"role": "assistant", "content": answer}]
-    if history and st.button("🗑️ Clear chat"):
-        st.session_state["chat_history"] = []
-        st.rerun()
+    with conversation:
+        for msg in history:
+            st.chat_message(msg["role"]).markdown(msg["content"])
+        if question:
+            st.chat_message("user").markdown(question)
+            with st.chat_message("assistant"):
+                answer = stream_llm(llm.chat, question, history, context)
+            if answer:
+                history += [{"role": "user", "content": question}, {"role": "assistant", "content": answer}]
+        if history and st.button("🗑️ Clear chat"):
+            st.session_state["chat_history"] = []
+            st.rerun()
 
     with st.expander("Data the chatbot can see"):
         st.json(context)
