@@ -42,7 +42,10 @@ something, say so instead of guessing. Don't use outside knowledge of players or
 - Be clear and concise; use short markdown headings and bullet points where helpful.
 - When discussing bets, explain the reasoning (model probability vs. the price's \
 implied probability) and note uncertainty. Never present a bet as a sure thing.
-- If real-money gambling comes up, remind the reader this is a simulation."""
+- If real-money gambling comes up, remind the reader this is a simulation.
+- `about_this_app` explains how every model works and `data_coverage` lists what the data does and doesn't
+include (e.g. no injuries). Use them to explain methods and limitations instead of guessing.
+- In `user_betting`, open_stakes is money riding on pending bets; settled_* fields cover settled bets only."""
 
 
 class LLMError(RuntimeError):
@@ -121,7 +124,9 @@ def _stream(messages: list[dict], model: str = DEFAULT_MODEL) -> Iterator[str]:
             raise LLMError("Couldn't reach the Anthropic API. Check your internet connection.") from None
 
 
-def _as_json(data) -> str:
+def _as_json(data, compact: bool = False) -> str:
+    if compact:  # large contexts: no indentation, fewer tokens
+        return json.dumps(data, separators=(",", ":"), default=str)
     return json.dumps(data, indent=2, default=str)
 
 
@@ -158,7 +163,7 @@ def build_preview_prompt(matchup: dict) -> str:
 
 
 def build_chat_message(question: str, context: dict) -> str:
-    return f"<app_data>\n{_as_json(context)}\n</app_data>\n\nQuestion: {question}"
+    return f"<app_data>\n{_as_json(context, compact=True)}\n</app_data>\n\nQuestion: {question}"
 
 
 # ---------------------------------------------------------------- public API

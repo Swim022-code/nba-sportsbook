@@ -3,10 +3,9 @@
 import pandas as pd
 import streamlit as st
 
+from src import ai_context, eda, futures, llm, style
 from src import database as db
-from src import eda, futures, llm, players, style
-from src.betting import VOID_STATUSES, betting_summary
-from src.odds_model import make_lines
+from src.betting import betting_summary
 from src.ui import (
     backtest_summary,
     get_backtest,
@@ -33,7 +32,7 @@ if not llm.is_configured():
     st.warning("""
 **AI features need an Anthropic API key.** The rest of the app works without one.
 
-1. Get a key at https://console.anthropic.com
+1. Get a key at https://platform.claude.com/settings/keys (add a few dollars of credit under Billing)
 2. Copy `.streamlit/secrets.toml.example` to `.streamlit/secrets.toml` and paste in your key
 3. Restart the app (`Ctrl+C`, then `streamlit run app.py`)
 """, icon="🔑")
@@ -49,52 +48,27 @@ def eda_insights(_games, season_key: tuple) -> dict:
     return eda.key_insights(done, tg)
 
 
-def latest_records() -> dict:
-    """Each team's current W-L record from the most recent game ESPN reported."""
-    cur = games[games["season"] == seasons[0]].sort_values("tipoff_utc")
-    rec = {}
-    for side in ("home", "away"):
-        rec.update(cur.dropna(subset=[f"{side}_record"]).groupby(f"{side}_team")[f"{side}_record"].last().to_dict())
-    return rec
-
-
-upcoming = games[~games["completed"] & ~games["status"].isin(VOID_STATUSES)].sort_values("tipoff_utc").head(15)
-slate = []
-for g in upcoming.itertuples():
-    ln = make_lines(ratings, g.home_team, g.away_team, g.neutral_site, house_edge=house_edge_on())
-    slate.append({"game": f"{g.away_team} @ {g.home_team}", "date": str(g.game_date.date()),
-                  "home_win_prob": round(ln["p_home"], 3), "home_moneyline": ln["home_ml"],
-                  "away_moneyline": ln["away_ml"], "home_spread": ln["home_spread"], "total": ln["total"]})
-records = latest_records()
+now = pd.Timestamp.now(tz="UTC")
+season = int(seasons[0])
+pg = player_games()
+edge = house_edge_on()
 context = {
-    "current_season": season_label(seasons[0]),
-    "eda_current_season": eda_insights(games, (seasons[0],)),
-    "power_ratings": {t: {"net_rating": round(float(v), 2), "record": records.get(t)}
-                      for t, v in ratings.ratings.items()},
-    "home_court_advantage_pts": round(ratings.home_court, 2),
-    "odds_mode": "house edge ON: spreads/totals -110, ~4.5% moneyline margin" if house_edge_on()
-                 else "fair odds: even money spreads/totals, no margin",
-    "upcoming_games_with_lines": slate,
+    "about_this_app": ai_context.model_description(ratings, edge),
+    "data_coverage": ai_context.DATA_COVERAGE,
+    "current_season": season_label(season),
+    "power_ratings": ai_context.power_ratings(ratings, futures.standings(games, season)),
+    "upcoming_games": ai_context.upcoming_games(games, ratings, pg, edge, now),
+    "championship_futures": ai_context.futures_board(get_title_sim(games, ratings, season), edge),
+    "player_leaders_min_5_games": ai_context.player_leaders(pg, season),
     "model_backtest": backtest_summary(get_backtest(games)),
+    "eda_current_season": eda_insights(games, (season,)),
+    "house_ledgers": {"edge_book": db.house_summary("edge"), "fair_book": db.house_summary("fair")},
 }
-title_board = futures.futures_odds(get_title_sim(games, ratings, int(seasons[0])), house_edge_on()).head(8)
-context["championship_futures"] = [
-    {"team": r.team, "title_prob": round(r.p_title, 3), "finals_prob": round(r.p_conf, 3),
-     "projected_wins": round(r.proj_wins, 1), "odds": int(r.odds)} for r in title_board.itertuples()]
-leaders = players.season_averages(player_games(), int(seasons[0]), min_games=5)
-if not leaders.empty:
-    context["player_leaders"] = {
-        label: leaders.nlargest(5, col)[["name", "team", col]].round(1).to_dict("records")
-        for label, col in (("points_per_game", "ppg"), ("rebounds_per_game", "rpg"), ("assists_per_game", "apg"))}
 if user:
-    my_bets = db.load_bets(user)
-    my_parlays = db.load_parlays(user)
-    context["user_betting"] = {
-        **betting_summary(pd.concat([my_bets, my_parlays], ignore_index=True)), "balance": db.get_balance(user),
-        "parlays": my_parlays.head(5)[["n_legs", "decimal_odds", "stake", "status"]].to_dict("records"),
-        "recent_bets": my_bets.head(10)[["matchup", "bet_type", "selection", "line", "american_odds",
-                                         "player_name", "prop_stat", "stake", "status"]].to_dict("records"),
-    }
+    my_bets, my_parlays = db.load_bets(user), db.load_parlays(user)
+    context["user_betting"] = ai_context.user_betting(
+        betting_summary(pd.concat([my_bets, my_parlays], ignore_index=True)), db.get_balance(user), my_bets,
+        my_parlays, db.load_parlay_legs(my_parlays["parlay_id"].tolist()))
 
 tab_report, tab_chat = st.tabs(["📝 AI-written EDA report", "💬 Ask the analyst"])
 

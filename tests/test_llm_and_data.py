@@ -111,7 +111,7 @@ def test_chat_keeps_history_and_attaches_context(fake):
     "".join(llm.chat("q2", history, {"balance": 900}))
     msgs = client.calls[0]["messages"]
     assert [m["role"] for m in msgs] == ["user", "assistant", "user"]
-    assert json.dumps({"balance": 900}, indent=2) in msgs[-1]["content"]
+    assert json.dumps({"balance": 900}, separators=(",", ":")) in msgs[-1]["content"]  # compact JSON
 
 
 # ---------------------------------------------------------------- void bets

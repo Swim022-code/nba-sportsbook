@@ -187,3 +187,25 @@ def test_old_database_is_upgraded(tmp_path):
     bet = db.load_bets("old", db_path=path).iloc[0]
     assert bet["book"] == "fair"  # +100 spread came from fair mode
     assert db.get_balance("old", path) == 950
+
+
+# ---------------------------------------------------------------- AI analyst context
+def test_summary_separates_open_and_settled_stakes(tmp_db):
+    betting.place_bet("alice", game("1"), "moneyline", "BOS", 100, 50, db_path=tmp_db)   # still open
+    betting.place_bet("alice", game("2"), "moneyline", "BOS", 100, 30, db_path=tmp_db)
+    betting.settle_bets(finals(("2", "BOS", "NY", 90, 100)), tmp_db)                      # lost
+    s = betting.betting_summary(db.load_bets("alice", db_path=tmp_db))
+    assert (s["open_stakes"], s["settled_staked"], s["profit"], s["pending"]) == (50, 30, -30, 1)
+
+
+def test_ai_context_covers_everything_the_ai_needs():
+    from src import ai_context
+    games, _ = _synthetic()
+    r = fit_ratings(games)
+    pr = ai_context.power_ratings(r, futures.standings(games, 2027))
+    assert len(pr) == 30 and {"offense_pts", "defense_pts_allowed", "record", "conference"} <= set(pr[0])
+    board = ai_context.futures_board(futures.simulate(r, futures.standings(games, 2027), n_sims=500), True)
+    assert len(board) == 30                                     # every team, not just the top 8
+    about = ai_context.model_description(r, True)
+    assert {"game_odds", "totals", "player_props", "futures", "pricing_now"} <= set(about)
+    assert any("injur" in x.lower() for x in ai_context.DATA_COVERAGE["not_included"])
