@@ -286,24 +286,30 @@ def settle_bets(games: pd.DataFrame, db_path=None) -> int:
 
 
 def betting_summary(wagers: pd.DataFrame) -> dict:
-    """Headline numbers for a user's wagers (singles and/or parlays)."""
+    """Headline numbers for a user's wagers (singles and/or parlays).
+
+    open_stakes    = money riding on pending wagers (already deducted from the balance)
+    settled_staked = money staked on wagers that have settled; profit and ROI use settled wagers only
+    """
     if wagers.empty:
-        return {"bets": 0, "pending": 0, "won": 0, "lost": 0, "push": 0, "void": 0,
-                "staked": 0.0, "returned": 0.0, "profit": 0.0, "roi": 0.0, "win_rate": 0.0}
+        return {"bets": 0, "pending": 0, "won": 0, "lost": 0, "push": 0, "void": 0, "open_stakes": 0.0,
+                "settled_staked": 0.0, "settled_returned": 0.0, "profit": 0.0, "roi": 0.0, "win_rate": 0.0}
+    pending = wagers[wagers["status"] == "pending"]
     settled = wagers[wagers["status"] != "pending"]
     staked = float(settled["stake"].sum())
     returned = float(settled["payout"].sum())
     decided = settled[settled["status"].isin(["won", "lost"])]
     return {
         "bets": len(wagers),
-        "pending": int((wagers["status"] == "pending").sum()),
+        "pending": len(pending),
         "won": int((wagers["status"] == "won").sum()),
         "lost": int((wagers["status"] == "lost").sum()),
         "push": int((wagers["status"] == "push").sum()),
         "void": int((wagers["status"] == "void").sum()),
-        "staked": staked,
-        "returned": returned,
+        "open_stakes": float(pending["stake"].sum()),
+        "settled_staked": staked,
+        "settled_returned": returned,
         "profit": returned - staked,
         "roi": (returned - staked) / staked if staked else 0.0,
-        "win_rate": (decided["status"] == "won").mean() if len(decided) else 0.0,
+        "win_rate": float((decided["status"] == "won").mean()) if len(decided) else 0.0,
     }
