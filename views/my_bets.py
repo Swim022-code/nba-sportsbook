@@ -61,13 +61,17 @@ else:
                        "status": "Status", "payout": num("Paid out", format="%.2f"), "final": "Final score"},
     )
 
-    settled = bets[bets["status"] != "pending"].sort_values("settled_at")
+    settled = bets[bets["status"] != "pending"].sort_values(["settled_at", "bet_id"])
     if not settled.empty:
         settled = settled.assign(pnl=settled["payout"] - settled["stake"])
         settled["cumulative_pnl"] = settled["pnl"].cumsum()
-        fig = px.line(settled, x="settled_at", y="cumulative_pnl", markers=True,
-                      title="Cumulative profit / loss", labels={"cumulative_pnl": CURRENCY, "settled_at": ""})
-        fig.add_hline(y=0, line_dash="dot")
+        settled["n"] = range(1, len(settled) + 1)
+        fig = px.line(settled, x="n", y="cumulative_pnl", markers=True, hover_data=["bet", "status", "pnl"],
+                      title="Cumulative profit / loss", color_discrete_sequence=["#2a78d6"],
+                      labels={"cumulative_pnl": f"Profit ({CURRENCY})", "n": "Settled bets", "pnl": "This bet"})
+        fig.update_traces(line_width=2, marker_size=9)
+        fig.update_xaxes(dtick=1)
+        fig.add_hline(y=0, line_dash="dot", line_color="#898781")
         st.plotly_chart(fig, width="stretch")
 
 st.subheader("🏆 Leaderboard")
