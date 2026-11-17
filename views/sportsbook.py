@@ -19,6 +19,10 @@ st.title("🏀 Sportsbook")
 st.caption("Odds are set by our ratings model (see 📊 Data Analysis → Model evaluation). "
            "Betting closes at tip-off; bets settle automatically when ESPN posts the final score.")
 
+if msg := st.session_state.pop("bet_confirmation", None):
+    st.toast(msg, icon="✅")
+    st.success(msg + "  ·  See **🎟️ My Bets** to track it.", icon="✅")
+
 now = pd.Timestamp(datetime.now(timezone.utc))
 upcoming = games[~games["completed"] & ~games["status"].isin(VOID_STATUSES)].sort_values("tipoff_utc").copy()
 if upcoming.empty:
@@ -119,8 +123,10 @@ for g in slate.itertuples():
                     if st.form_submit_button("Place bet", type="primary"):
                         try:
                             bet_id = place_bet(user, g._asdict(), market, sel, odds, stake, line)
-                            st.success(f"Bet #{bet_id} placed: {choice} for {money(stake)} {CURRENCY}")
-                            st.balloons()
+                            st.session_state["bet_confirmation"] = (
+                                f"Bet #{bet_id} placed: **{choice}** ({g.away_team} @ {g.home_team}) "
+                                f"for {money(stake)} {CURRENCY}")
+                            st.rerun()  # refresh so the sidebar balance updates immediately
                         except BetError as exc:
                             st.error(str(exc))
 
