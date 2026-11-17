@@ -165,6 +165,6 @@ def test_house_summary_tracks_money(tmp_db):
     final = pd.DataFrame([{"game_id": g, "completed": True, "home_team": "BOS", "home_score": 100.0,
                            "away_score": 90.0} for g in ("1", "2")])
     betting.settle_bets(final, tmp_db)
-    h = db.house_summary(tmp_db)
+    h = db.house_summary(db_path=tmp_db)
     assert (h["handle"], h["paid_out"], h["house_profit"]) == (200, 200, 0)
     assert db.get_balance("alice", tmp_db) == 1000
