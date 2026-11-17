@@ -76,7 +76,8 @@ def matchup_context(g, lines) -> dict:
     }
 
 
-for g in slate.itertuples():
+def game_card(g) -> None:
+    """One game: odds, model projection, bet slip and AI preview."""
     lines = make_lines(ratings, g.home_team, g.away_team, g.neutral_site)
     started = g.tipoff_utc <= now
     with st.container(border=True):
@@ -96,7 +97,7 @@ for g in slate.itertuples():
                    f"{g.away_team} {lines['pred_away_pts']:.0f}, {g.home_team} {lines['pred_home_pts']:.0f}")
 
         if started:
-            continue
+            return
         bet_col, ai_col = st.columns(2)
         with bet_col.expander("🎟️ Place a bet"):
             if not user:
@@ -135,3 +136,15 @@ for g in slate.itertuples():
                 stream_llm(llm.game_preview, matchup_context(g, lines))
             elif not llm.is_configured():
                 st.caption("Requires an Anthropic API key (see README).")
+
+
+open_games = slate[slate["tipoff_utc"] > now]
+live_games = slate[slate["tipoff_utc"] <= now]
+if open_games.empty:
+    st.info("Every game on this day has started. Pick another day above to bet.", icon="⏱️")
+for g in open_games.itertuples():
+    game_card(g)
+if not live_games.empty:
+    with st.expander(f"🔴 In progress or already started ({len(live_games)}): betting closed"):
+        for g in live_games.itertuples():
+            game_card(g)
