@@ -5,7 +5,10 @@ Run with:  streamlit run app.py
 
 import streamlit as st
 
+from src.style import inject_css
+
 st.set_page_config(page_title="NBA Mock Sportsbook", page_icon="🏀", layout="wide")
+inject_css()
 
 pages = [
     st.Page("views/home.py", title="Home", icon="🏠", default=True),
