@@ -149,14 +149,20 @@ def key_insights(games: pd.DataFrame, team_games: pd.DataFrame) -> dict:
     }
 
 
-def scoring_trend(games: pd.DataFrame) -> pd.DataFrame:
-    """Average game total and home margin by calendar month (trend over time)."""
+def scoring_trend(games: pd.DataFrame, min_games: int = 1) -> pd.DataFrame:
+    """Average game total and home win % by season and calendar month.
+
+    Months with fewer than `min_games` games (e.g. a 5-game NBA Finals month) are
+    dropped because their averages are too noisy to read as a trend.
+    """
     g = completed_games(games)
     g["month"] = pd.to_datetime(g["game_date"]).dt.to_period("M").dt.to_timestamp()
-    return (g.groupby("month")
+    by = ["season", "month"] if "season" in g else ["month"]
+    out = (g.groupby(by)
              .agg(games=("game_id", "size"), avg_total=("total_pts", "mean"),
                   home_win_pct=("home_won", "mean"))
              .reset_index())
+    return out[out["games"] >= min_games].reset_index(drop=True)
 
 
 def describe_correlations(corr_with_win: pd.Series) -> str:

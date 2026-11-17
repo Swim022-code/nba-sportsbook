@@ -155,5 +155,6 @@ def test_scoring_trend_and_correlation_text():
     trend = eda.scoring_trend(games)
     assert trend["games"].tolist() == [2, 1]
     assert trend["avg_total"].tolist() == [207.5, 210.0]
+    assert eda.scoring_trend(games, min_games=2)["games"].tolist() == [2]   # noisy month dropped
     text = eda.describe_correlations(pd.Series({"won": 1.0, "fg_pct": 0.5, "fg3a": -0.01, "reb": 0.3}))
     assert "FG %" in text and "3PT attempted" in text

@@ -86,8 +86,10 @@ def calibration_plot(bt: pd.DataFrame, bins: int = 10) -> go.Figure:
     return _style(fig, "Calibration: do 70% favorites win 70% of the time?")
 
 
-def line(df: pd.DataFrame, x: str, y: str, title: str, labels: dict | None = None, pct: bool = False) -> go.Figure:
-    fig = px.line(df, x=x, y=y, markers=True, labels=labels, color_discrete_sequence=[BLUE])
+def line(df: pd.DataFrame, x: str, y: str, title: str, labels: dict | None = None, pct: bool = False,
+         color: str | None = None) -> go.Figure:
+    """Line chart; with `color`, each group (e.g. season) is its own unconnected line."""
+    fig = px.line(df, x=x, y=y, color=color, markers=True, labels=labels, color_discrete_sequence=SERIES)
     fig.update_traces(line_width=2, marker_size=8)
     if pct:
         fig.update_yaxes(tickformat=".0%")

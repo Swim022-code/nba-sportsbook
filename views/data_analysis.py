@@ -164,12 +164,19 @@ with tabs[2]:
         d1.markdown("**Group means**  \n" + "  \n".join(f"{i}: **{v:.2f}**" for i, v in grp.items()))
 
     st.subheader("Trends over time")
-    trend = eda.scoring_trend(done)
+    min_games = 20
+    trend = eda.scoring_trend(done, min_games=min_games)
+    dropped = eda.scoring_trend(done).query("games < @min_games")
+    trend["Season"] = trend["season"].map(season_label)
+    lbl = {"month": "", "avg_total": "Avg total points", "home_win_pct": "Home win %"}
     t1, t2 = st.columns(2)
-    t1.plotly_chart(charts.line(trend, "month", "avg_total", "Average game total by month",
-                                {"avg_total": "Avg total points", "month": ""}), width="stretch")
-    t2.plotly_chart(charts.line(trend, "month", "home_win_pct", "Home win % by month",
-                                {"home_win_pct": "Home win %", "month": ""}, pct=True), width="stretch")
+    t1.plotly_chart(charts.line(trend, "month", "avg_total", "Average game total by month", lbl, color="Season"),
+                    width="stretch")
+    t2.plotly_chart(charts.line(trend, "month", "home_win_pct", "Home win % by month", lbl, pct=True,
+                                color="Season"), width="stretch")
+    if not dropped.empty:
+        st.caption(f"Months with fewer than {min_games} games are hidden as too noisy: "
+                   + ", ".join(f"{m:%b %Y} ({n} games)" for m, n in zip(dropped["month"], dropped["games"], strict=True)))
     playoff = eda.completed_games(done).groupby("season_type")["total_pts"].mean()
     if {"regular-season", "post-season"} <= set(playoff.index):
         st.info(f"Playoff games average **{playoff['post-season']:.1f}** total points vs "
