@@ -147,3 +147,22 @@ def key_insights(games: pd.DataFrame, team_games: pd.DataFrame) -> dict:
         "biggest_blowout": (outliers.iloc[0][["game_date", "away_team", "away_score", "home_team", "home_score"]]
                             .astype(str).to_dict() if len(outliers) else None),
     }
+
+
+def scoring_trend(games: pd.DataFrame) -> pd.DataFrame:
+    """Average game total and home margin by calendar month (trend over time)."""
+    g = completed_games(games)
+    g["month"] = pd.to_datetime(g["game_date"]).dt.to_period("M").dt.to_timestamp()
+    return (g.groupby("month")
+             .agg(games=("game_id", "size"), avg_total=("total_pts", "mean"),
+                  home_win_pct=("home_won", "mean"))
+             .reset_index())
+
+
+def describe_correlations(corr_with_win: pd.Series) -> str:
+    """One plain-English sentence summarising which stats go with winning."""
+    s = corr_with_win.drop(labels=["won", "margin", "pts"], errors="ignore").sort_values(ascending=False)
+    strongest, weakest = s.index[0], s.abs().idxmin()
+    return (f"**{STAT_LABELS.get(strongest, strongest)}** has the strongest link to winning "
+            f"(r = {s.iloc[0]:.2f}), while **{STAT_LABELS.get(weakest, weakest)}** has almost none "
+            f"(r = {s[weakest]:.2f}).")

@@ -79,12 +79,16 @@ def calibration_plot(bt: pd.DataFrame, bins: int = 10) -> go.Figure:
     fig.add_trace(go.Scatter(x=cal["pred"], y=cal["actual"], mode="lines+markers", name="Our model",
                              marker=dict(size=10, color=BLUE), line=dict(color=BLUE, width=2),
                              customdata=cal["n"],
-                             hovertemplate="predicted %{x:.0%}<br>actual %{y:.0%}<br>%{customdata} games<extra></extra>"))
+                             hovertemplate=("predicted %{x:.0%}<br>actual %{y:.0%}<br>"
+                                            "%{customdata} games<extra></extra>")))
     fig.update_layout(xaxis_title="Predicted home win probability", yaxis_title="Actual home win rate",
                       xaxis_tickformat=".0%", yaxis_tickformat=".0%")
     return _style(fig, "Calibration: do 70% favorites win 70% of the time?")
 
 
-def bar(df: pd.DataFrame, x: str, y: str, title: str, labels: dict | None = None) -> go.Figure:
-    fig = px.bar(df, x=x, y=y, color_discrete_sequence=[BLUE], labels=labels)
+def line(df: pd.DataFrame, x: str, y: str, title: str, labels: dict | None = None, pct: bool = False) -> go.Figure:
+    fig = px.line(df, x=x, y=y, markers=True, labels=labels, color_discrete_sequence=[BLUE])
+    fig.update_traces(line_width=2, marker_size=8)
+    if pct:
+        fig.update_yaxes(tickformat=".0%")
     return _style(fig, title)
