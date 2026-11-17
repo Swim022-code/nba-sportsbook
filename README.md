@@ -43,8 +43,8 @@ then into prices. This project rebuilds that pipeline end to end:
 | Page | What you can do |
 |---|---|
 | 🏠 **Home** | Overview, next games with odds, top power ratings, how-to guide |
-| 🏀 **Sportsbook** | Pick a game day and team, see model odds, place bets, get an AI matchup preview |
-| 🎟️ **My Bets** | Open/settled bets, W-L-P record, ROI, cumulative profit chart, leaderboard |
+| 🏀 **Sportsbook** | Sportsbook-style game cards with team logos, odds and the model's win probability; a bet slip showing payout, model chance vs. implied odds, and expected value; AI matchup preview |
+| 🎟️ **My Bets** | Open/settled bets, W-L-P record, ROI, cumulative profit chart, leaderboard, and **🏦 The House** ledger (house-edge mode) |
 | 📊 **Data Analysis** | Interactive EDA with season, game-type and team filters, plus model evaluation and "🤖 Explain this with AI" |
 | 🤖 **AI Analyst** | AI-written EDA report (downloadable) and a chatbot that knows the app's data and your bets |
 
@@ -155,9 +155,22 @@ regression (λ = 2). Weights decay with a 45-day half-life, and last season's ga
 second regression splits teams into offense (points scored) and defense (points allowed) for totals.
 
 **Odds.** `P(home win) = Φ(predicted margin / σ)`, with σ ≈ 13.4 points (the model's error spread).
-Moneylines include a 4.5% house margin; spreads and totals are priced at -110.
 
-**Key EDA findings** (1,519 completed games):
+**🏦 House edge switch** (sidebar). It's a real sportsbook design decision you can toggle live:
+| | House edge **ON** (default) | House edge **OFF** (fair book) |
+|---|---|---|
+| Spreads & totals | -110 both sides (risk 110 to win 100) | +100 both sides (even money) |
+| Moneylines | Model probability + 4.5% margin | Exact model probability |
+| Book margin (implied probs − 100%) | ≈ 4.5–4.8% | 0% |
+| Bettor's expected value | Negative: the house profits over time | ≈ 0: nobody has an edge |
+
+**Where the money goes.** A stake leaves the bettor's balance when the bet is placed. When the game ends, the house
+pays back stake + winnings (win), the stake (push or postponed game), or nothing (loss), so the house keeps losing stakes and
+pays winners. In house-edge mode, *My Bets* shows **🏦 The House** ledger: total handle, paid out, house profit and hold %.
+The bet slip also shows each bet's **expected value** (`P(win) × profit − P(loss) × stake`), which makes the house
+edge visible before you bet.
+
+**Key EDA findings** (about 1,520 completed games as of Nov 16, 2026; numbers update as new games finish):
 - **Home-court advantage:** home teams win **55.0%**, by **+1.75 pts** on average. Controlling for team strength, the model estimates **+2.3 pts**.
 - **Efficiency beats volume:** FG% has the strongest correlation with winning (**r = 0.47**). 3-point *attempts* have none (**r = −0.01**), while 3PT % does (**r = 0.34**).
 - **Playoffs are lower scoring:** about **216** total points vs **231** in the regular season.
@@ -192,8 +205,9 @@ nba-sportsbook/
 │   ├── betting.py            # place / grade / settle / void bets
 │   ├── llm.py                # Claude API integration + prompts
 │   ├── charts.py             # Plotly chart builders (one consistent palette)
+│   ├── style.py              # page styling: banners, game cards, odds boxes, house panel
 │   └── ui.py                 # shared Streamlit helpers (sidebar, caching, streaming)
-├── tests/                    # pytest suite (34 tests; no network or API key needed)
+├── tests/                    # pytest suite (36 tests; no network or API key needed)
 ├── data/games_snapshot.csv   # offline data snapshot
 ├── docs/                     # report, presentation plan, team workflow, screenshots
 ├── .github/workflows/ci.yml  # GitHub Actions: lint + tests on every push / PR
@@ -205,7 +219,7 @@ nba-sportsbook/
 
 ## 7. Testing & code quality
 ```bash
-pytest -q          # 34 unit tests: odds math, bet grading/settlement/voiding, JSON parsing,
+pytest -q          # 36 unit tests: odds math, bet grading/settlement/voiding, JSON parsing,
                    # model recovers known team strengths, EDA helpers, LLM prompts & error handling
 pip install ruff
 ruff check .       # lint (style, imports, common bugs)
@@ -227,7 +241,7 @@ The LLM tests use a fake client, so they need no API key and cost nothing.
 | Correlation analysis | *Data Analysis → Correlations* (Pearson/Spearman heatmap, scatter + fit) |
 | Insights shown in the app | *Overview → Key insights*, playoff insight, model evaluation |
 | LLM via API, used meaningfully | `src/llm.py`: report, chart explanations, previews, chatbot |
-| Clean UI; users can filter, visualize and query | Filters on Sportsbook and EDA pages; chatbot for natural-language queries |
+| Clean UI; users can filter, visualize and query | Sportsbook-style design with team logos; filters on Sportsbook and EDA pages; house-edge switch; chatbot for natural-language queries |
 | Error handling, documentation, user guidance | Friendly errors everywhere, offline fallback, how-to on Home, tooltips |
 | Modular, documented, readable code | `src/` vs `views/` split, docstrings, ruff lint |
 | Git/GitHub with commits from each member | See section 9 and `docs/TEAM_WORKFLOW.md` |

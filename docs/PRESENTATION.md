@@ -8,8 +8,8 @@ Each member presents the part they built. Rehearse once with a timer.
 | 1:00–3:00 | **Data acquisition** | Member 1 | ESPN API: free JSON, one request per month, cached in SQLite, offline CSV fallback. Show *Data Analysis → Overview → Data source* and the JSON example in the README. |
 | 3:00–6:00 | **EDA** | Member 2 | *Data quality*: **the All-Star Game story** (games with missing box scores revealed ESPN labels the All-Star Game as regular season) plus **postponed games**. *Outliers*: move the IQR slider; winsorizing barely changes the mean. *Correlations*: **FG% r = 0.47 vs. 3PT attempts r ≈ 0, so efficiency beats volume**. *Trends*: **playoff games score about 15 fewer points**. Click **🤖 Explain this with AI** once. |
 | 6:00–8:30 | **The model** | Member 3 | *Teams*: ridge-regression power ratings, home court ≈ +2.3 pts. *Model evaluation*: **68% accuracy vs. 55% for always picking home**, Brier 0.208 vs. 0.25, and the **calibration plot** (key slide: 70% favorites win about 70%). |
-| 8:30–12:30 | **Live demo** | Member 4 | Log in → **Sportsbook** → pick a game → **AI matchup preview** → place a spread bet → balance drops instantly → **My Bets** shows yesterday's **settled** bets and the profit chart → **AI Analyst** → *Generate report* → chatbot: "Which upcoming game has the closest odds?" then "How am I doing with my bets?" |
-| 12:30–14:00 | **Engineering** | Anyone | `src/` (logic) vs `views/` (UI); 34 pytest tests incl. a fake-LLM test; GitHub Actions CI badge/run; PR workflow; graceful errors (no key, ESPN offline, postponed games). |
+| 8:30–12:30 | **Live demo** | Member 4 | Log in → **Sportsbook** → pick a game → **AI matchup preview** → open the bet slip: point at **model chance vs. odds imply** and the **negative expected value** (that's the house edge) → **flip the 🏦 House edge switch off**: odds become even money, margin 0%, EV ≈ 0 → switch it back on → place a spread bet → balance drops instantly → **My Bets** shows yesterday's **settled** bets, the profit chart and **🏦 The House** ledger (what the house kept) → **AI Analyst** → *Generate report* → chatbot: "Which upcoming game has the closest odds?" then "How am I doing with my bets?" |
+| 12:30–14:00 | **Engineering** | Anyone | `src/` (logic) vs `views/` (UI); 36 pytest tests incl. a fake-LLM test; GitHub Actions CI badge/run; PR workflow; graceful errors (no key, ESPN offline, postponed games). |
 | 14:00–15:00 | **Lessons & next steps** | Anyone | Real data is messy; evaluate honestly (walk-forward); ground the LLM in your own numbers. Next: injuries/rest days, compare with real sportsbook lines, parlays. |
 
 ## Demo-day checklist
@@ -20,6 +20,8 @@ Each member presents the part they built. Rehearse once with a timer.
 - [ ] Browser zoom 110–125% so the room can read it; close other tabs
 
 ## Likely questions & answers
+- **Is the sportsbook fair?** The lines are centered on the model's best estimate, so it doesn't pick winners against you. The only unfairness is the margin (vig), like every real book. The switch turns it off, and the bet slip's expected value goes to about 0.
+- **Where does lost money go?** To the house: stakes leave your balance when you bet, winners are paid back, and losing stakes stay with the house. See the House ledger on My Bets.
 - **Why not use real sportsbook odds?** The free API doesn't have them, and building our own odds model was the data-science challenge. Comparing against real lines is future work.
 - **Why ridge regression?** Early in the season teams have only about 13 games. Ridge pulls noisy ratings toward average, and recency weighting tracks roster changes.
 - **How do you know it isn't overfit?** The walk-forward back-test only predicts games *after* each training cutoff, refitting weekly.
