@@ -1,0 +1,14 @@
+# secrets - never commit your API key
+.streamlit/secrets.toml
+.env
+
+# local database (rebuilt automatically from the API / snapshot)
+data/*.db
+
+# python
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
+venv/
+.DS_Store
