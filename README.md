@@ -36,15 +36,18 @@ then into prices. This project rebuilds that pipeline end to end:
 | **Clean & explore** | Missing data, outliers, distributions, trends, correlations | `src/eda.py`, `views/data_analysis.py` |
 | **Model** | Team power ratings (weighted ridge regression) → win probabilities → odds | `src/odds_model.py` |
 | **Evaluate** | Walk-forward back-test: accuracy, Brier score, calibration | `src/odds_model.py::backtest` |
-| **Bet** | Moneyline / spread / total bets; auto-settled from final scores | `src/betting.py`, `views/sportsbook.py` |
+| **Bet** | Moneylines, spreads, totals, **player props**, **parlays** and **futures**; auto-settled from final scores and box scores; two house ledgers | `src/betting.py`, `src/players.py`, `src/futures.py` |
 | **LLM** | AI EDA report, "explain this chart", game previews, analyst chatbot | `src/llm.py`, `views/ai_analyst.py` |
 
 ### App pages
 | Page | What you can do |
 |---|---|
 | 🏠 **Home** | Overview, next games with odds, top power ratings, how-to guide |
-| 🏀 **Sportsbook** | Sportsbook-style game cards with team logos, odds and the model's win probability; a bet slip showing payout, model chance vs. implied odds, and expected value; AI matchup preview |
-| 🎟️ **My Bets** | Open/settled bets, W-L-P record, ROI, cumulative profit chart, leaderboard, and **🏦 The House** ledger (house-edge mode) |
+| 🏀 **Sportsbook** | Game cards with team logos, odds and the model's win probability. Each game has a betting panel: **game lines**, **🎯 player props** (points / rebounds / assists / 3PM) and an **AI preview**. **➕ Add to parlay** builds a 2-8 leg **parlay slip** in the sidebar. The bet slip shows payout, model chance vs. implied odds, and expected value |
+| 🏆 **Futures** | Championship odds from a **5,000-run season simulation** (rest of season → play-in → best-of-7 playoffs); bet on the champion |
+| 🎟️ **My Bets** | Singles, props, futures and parlays (with each leg's result), W-L-P record, ROI, profit chart, house ledger for the current odds mode |
+| 🥇 **Leaderboard** | Podium, every user ranked by net profit (win %, ROI, biggest win) and **two separate house ledgers** (house-edge book vs. fair-odds book) with a profit-over-time chart |
+| ⛹️ **Players** | League leaders with photos, player profiles (season averages, game-log chart and table) and that player's props for the next game |
 | 📊 **Data Analysis** | Interactive EDA with season, game-type and team filters, plus model evaluation and "🤖 Explain this with AI" |
 | 🤖 **AI Analyst** | AI-written EDA report (downloadable) and a chatbot that knows the app's data and your bets |
 
@@ -133,6 +136,15 @@ Response structure (trimmed to the fields we use):
 points, rebounds, assists, FG / 3PT / FT made, attempted and %, plus record). For the analysis it is
 reshaped to **one row per team per game**.
 
+### ESPN game summary API (player box scores)
+| | |
+|---|---|
+| Endpoint | `https://site.api.espn.com/apis/site/v2/sports/basketball/nba/summary?event=<game_id>` |
+| Used for | Player stats per game (minutes, points, rebounds, assists, 3PM, shooting, +/-, starter, did-not-play) for **player props**, prop settlement and the **Players** page |
+| Retrieval | One request per completed game, 8 in parallel; each game is downloaded once. `data/player_games_snapshot.csv` (about 40,000 player-games from 2025-26 and 2026-27) ships with the repo, so a first launch only fetches new games |
+
+Structure: `boxscore.players[team].statistics[0] = {keys: ["minutes", "points", ...], athletes: [{athlete: {id, displayName, headshot}, starter, didNotPlay, stats: ["34", "27", ...]}]}`
+
 **Cleaning:** we remove preseason games and the **All-Star Game**, which ESPN labels as regular season.
 Our missing-data check flagged it because those games have no box scores. Postponed games
 (`STATUS_POSTPONED`) are kept out of the analysis, and bets on them are voided and refunded.
@@ -164,11 +176,24 @@ second regression splits teams into offense (points scored) and defense (points 
 | Book margin (implied probs − 100%) | ≈ 4.5–4.8% | 0% |
 | Bettor's expected value | Negative: the house profits over time | ≈ 0: nobody has an edge |
 
-**Where the money goes.** A stake leaves the bettor's balance when the bet is placed. When the game ends, the house
-pays back stake + winnings (win), the stake (push or postponed game), or nothing (loss), so the house keeps losing stakes and
-pays winners. In house-edge mode, *My Bets* shows **🏦 The House** ledger: total handle, paid out, house profit and hold %.
+**Where the money goes: two house ledgers.** A stake leaves the bettor's balance when the bet is placed and goes to
+the house. When it settles, the house pays back stake + winnings (win), the stake (push or void), or nothing (loss).
+Every wager records which odds mode it was priced in, so the house keeps **two separate ledgers**: the
+**house-edge book** and the **fair-odds book**. The *Leaderboard* shows both side by side, plus a chart of each one's
+cumulative profit over time. Over many bets the edge book trends up (the margin), while the fair book only moves by luck.
 The bet slip also shows each bet's **expected value** (`P(win) × profit − P(loss) × stake`), which makes the house
 edge visible before you bet.
+
+**Player props.** Line = the player's recency-weighted average over the last 20 games (8-game half-life), set at x.5
+so there are no pushes. P(over) = 1 − Φ((line − mean) / sd), using the player's own game-to-game spread.
+Offered for each team's top 4 players by recent minutes who played the team's latest game.
+
+**Parlays.** 2-8 legs from different games (game lines and/or props). Decimal odds multiply. One losing leg loses the
+parlay; pushed or voided legs drop out of the odds.
+
+**Futures (championship).** 5,000 simulated seasons: each team adds Binomial(games left, p) wins (p = its chance to beat an
+average team), then seeding, play-in, and best-of-7 series using the ratings model with home court. Title probability =
+share of simulations won. With the house edge on, futures carry a ~25% margin (real books hold more on futures).
 
 **Key EDA findings** (about 1,520 completed games as of Nov 16, 2026; numbers update as new games finish):
 - **Home-court advantage:** home teams win **55.0%**, by **+1.75 pts** on average. Controlling for team strength, the model estimates **+2.3 pts**.
@@ -195,20 +220,24 @@ The calibration curve tracks the diagonal: teams given a 70% chance win about 70
 nba-sportsbook/
 ├── app.py                    # entry point + page navigation
 ├── views/                    # one file per page (UI only)
-│   ├── home.py  sportsbook.py  my_bets.py  data_analysis.py  ai_analyst.py
+│   ├── home.py  sportsbook.py  futures.py  my_bets.py  leaderboard.py
+│   ├── players.py  data_analysis.py  ai_analyst.py
 ├── src/                      # logic (no Streamlit except ui.py), unit-tested
 │   ├── data_fetcher.py       # ESPN API calls + JSON parsing
 │   ├── data_service.py       # refresh/caching logic, data cleaning, offline snapshot
 │   ├── database.py           # SQLite schema + queries
 │   ├── eda.py                # EDA functions (pure pandas)
 │   ├── odds_model.py         # ratings, odds math, back-test
-│   ├── betting.py            # place / grade / settle / void bets
+│   ├── betting.py            # place / grade / settle bets, props, futures and parlays
+│   ├── players.py            # ESPN box scores, player averages, prop lines
+│   ├── futures.py            # season + playoff Monte Carlo, championship odds
 │   ├── llm.py                # Claude API integration + prompts
 │   ├── charts.py             # Plotly chart builders (one consistent palette)
-│   ├── style.py              # page styling: banners, game cards, odds boxes, house panel
+│   ├── style.py              # page styling: banners, game cards, odds boxes, player cards, podium, ledgers
 │   └── ui.py                 # shared Streamlit helpers (sidebar, caching, streaming)
-├── tests/                    # pytest suite (36 tests; no network or API key needed)
-├── data/games_snapshot.csv   # offline data snapshot
+├── tests/                    # pytest suite (50 tests; no network or API key needed)
+├── data/games_snapshot.csv   # offline data snapshot (games)
+├── data/player_games_snapshot.csv  # player box scores (offline + fast first launch)
 ├── docs/                     # report, presentation plan, team workflow, screenshots
 ├── .github/workflows/ci.yml  # GitHub Actions: lint + tests on every push / PR
 ├── pyproject.toml            # ruff (lint) + pytest config
@@ -219,7 +248,8 @@ nba-sportsbook/
 
 ## 7. Testing & code quality
 ```bash
-pytest -q          # 36 unit tests: odds math, bet grading/settlement/voiding, JSON parsing,
+pytest -q          # 50 unit tests: odds math, bet grading/settlement/voiding, parlays, props, futures,
+                   # house ledgers, leaderboard, database upgrade, season simulation, JSON parsing,
                    # model recovers known team strengths, EDA helpers, LLM prompts & error handling
 pip install ruff
 ruff check .       # lint (style, imports, common bugs)
@@ -233,15 +263,15 @@ The LLM tests use a fake client, so they need no API key and cost nothing.
 
 | Requirement | Where it's met |
 |---|---|
-| Connect to an external API for real data | ESPN API, `src/data_fetcher.py` |
+| Connect to an external API for real data | ESPN scoreboard API (games) + ESPN summary API (player box scores): `src/data_fetcher.py`, `src/players.py` |
 | Document source and structure (JSON) | Section 4 above; *Data Analysis → Overview → Data source* |
-| Data retrieval and storage logic | `src/data_service.py` (incremental refresh), `src/database.py` (SQLite) |
+| Data retrieval and storage logic | `src/data_service.py`, `src/players.py` (incremental, parallel), `src/database.py` (SQLite with in-place upgrades) |
 | Descriptive statistics and visualizations | *Data Analysis → Distributions & trends* |
 | Outliers and missing data: identify and treat | *Data Analysis → Data quality* (IQR, winsorizing; All-Star and postponed games) |
 | Correlation analysis | *Data Analysis → Correlations* (Pearson/Spearman heatmap, scatter + fit) |
 | Insights shown in the app | *Overview → Key insights*, playoff insight, model evaluation |
 | LLM via API, used meaningfully | `src/llm.py`: report, chart explanations, previews, chatbot |
-| Clean UI; users can filter, visualize and query | Sportsbook-style design with team logos; filters on Sportsbook and EDA pages; house-edge switch; chatbot for natural-language queries |
+| Clean UI; users can filter, visualize and query | 8 pages in a sportsbook-style design (logos, player photos); filters on Sportsbook, Players and EDA pages; house-edge switch; parlay slip; chatbot for natural-language queries |
 | Error handling, documentation, user guidance | Friendly errors everywhere, offline fallback, how-to on Home, tooltips |
 | Modular, documented, readable code | `src/` vs `views/` split, docstrings, ruff lint |
 | Git/GitHub with commits from each member | See section 9 and `docs/TEAM_WORKFLOW.md` |
