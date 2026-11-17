@@ -9,10 +9,10 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from src import betting, database as db, eda
+from src import betting, eda
+from src import database as db
 from src.data_fetcher import parse_events
-from src.odds_model import (american_to_decimal, fit_ratings, make_lines, payout_for,
-                            prob_to_american)
+from src.odds_model import american_to_decimal, fit_ratings, make_lines, payout_for, prob_to_american
 
 
 # ---------------------------------------------------------------- odds math
@@ -116,7 +116,7 @@ def _synthetic_season(n_games=400, seed=0):
     """Games generated from known team strengths, to check the model recovers them."""
     rng = np.random.default_rng(seed)
     teams = [f"T{i}" for i in range(10)]
-    strength = dict(zip(teams, np.linspace(-8, 8, 10)))
+    strength = dict(zip(teams, np.linspace(-8, 8, 10), strict=True))
     rows = []
     for i in range(n_games):
         h, a = rng.choice(teams, 2, replace=False)
