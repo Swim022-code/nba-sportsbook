@@ -8,8 +8,8 @@ from src import database as db
 from src.betting import betting_summary
 from src.ui import CURRENCY, fmt_line, fmt_odds, get_games, money, sidebar
 
-user = sidebar()
 games = get_games()  # also settles any finished bets
+user = sidebar()
 
 st.title("🎟️ My Bets")
 if not user:

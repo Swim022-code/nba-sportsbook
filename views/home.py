@@ -9,8 +9,8 @@ from src.data_fetcher import EASTERN
 from src.odds_model import make_lines
 from src.ui import CURRENCY, fmt_line, fmt_odds, get_games, get_ratings, sidebar
 
-user = sidebar()
 games = get_games()
+user = sidebar()
 ratings = get_ratings(games)
 
 st.title("🏀 NBA Mock Sportsbook")

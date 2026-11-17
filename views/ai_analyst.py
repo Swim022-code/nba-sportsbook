@@ -8,8 +8,8 @@ from src.betting import VOID_STATUSES, betting_summary
 from src.odds_model import make_lines
 from src.ui import backtest_summary, get_backtest, get_games, get_ratings, season_label, sidebar, stream_llm
 
-user = sidebar()
 games = get_games()
+user = sidebar()
 ratings = get_ratings(games)
 
 st.title("🤖 AI Analyst")

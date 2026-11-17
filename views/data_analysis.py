@@ -6,8 +6,8 @@ from src import charts, eda, llm
 from src.data_fetcher import SCOREBOARD_URL
 from src.ui import backtest_summary, get_backtest, get_games, get_ratings, season_label, sidebar, stream_llm
 
-sidebar()
 games = get_games()
+sidebar()
 ratings = get_ratings(games)
 
 
