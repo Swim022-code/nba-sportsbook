@@ -142,3 +142,29 @@ def test_ratings_recover_known_strengths():
 def test_iqr_outliers():
     s = pd.Series([10, 11, 12, 11, 10, 50])
     assert eda.iqr_outliers(s).tolist() == [False] * 5 + [True]
+
+
+# ---------------------------------------------------------------- house edge on/off
+def test_house_edge_toggle_changes_margin():
+    from src.odds_model import book_margin, model_probability
+    games, _ = _synthetic_season()
+    r = fit_ratings(games)
+    on = make_lines(r, "T7", "T3", house_edge=True)
+    off = make_lines(r, "T7", "T3", house_edge=False)
+    assert on["spread_odds"] == on["total_odds"] == -110
+    assert off["spread_odds"] == off["total_odds"] == 100
+    assert book_margin(on["home_ml"], on["away_ml"]) > 0.03          # house keeps ~4.5%
+    assert abs(book_margin(off["home_ml"], off["away_ml"])) < 0.01    # fair: ~0%
+    for market, a, b in [("moneyline", "home", "away"), ("spread", "home", "away"), ("total", "over", "under")]:
+        assert model_probability(r, on, market, a) + model_probability(r, on, market, b) == pytest.approx(1)
+
+
+def test_house_summary_tracks_money(tmp_db):
+    betting.place_bet("alice", _game(), "moneyline", "BOS", 100, 100, db_path=tmp_db)            # will win: pays 200
+    betting.place_bet("alice", _game(game_id="2"), "moneyline", "NY", 100, 100, db_path=tmp_db)  # will lose
+    final = pd.DataFrame([{"game_id": g, "completed": True, "home_team": "BOS", "home_score": 100.0,
+                           "away_score": 90.0} for g in ("1", "2")])
+    betting.settle_bets(final, tmp_db)
+    h = db.house_summary(tmp_db)
+    assert (h["handle"], h["paid_out"], h["house_profit"]) == (200, 200, 0)
+    assert db.get_balance("alice", tmp_db) == 1000

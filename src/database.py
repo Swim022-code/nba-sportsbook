@@ -162,6 +162,27 @@ def leaderboard(db_path=None) -> pd.DataFrame:
         )
 
 
+def house_summary(db_path=None) -> dict:
+    """The house's side of every settled bet: money taken in, paid out, and kept.
+
+    Every stake leaves the bettor's balance when the bet is placed. When a bet settles,
+    the house pays back stake + winnings (won), the stake (push/void), or nothing (lost).
+    So house profit = total stakes - total payouts.
+    """
+    with connect(db_path) as conn:
+        row = conn.execute(
+            """SELECT COUNT(*) AS bets, COALESCE(SUM(stake), 0) AS handle, COALESCE(SUM(payout), 0) AS paid_out
+               FROM bets WHERE status != 'pending'"""
+        ).fetchone()
+        open_row = conn.execute(
+            "SELECT COUNT(*) AS n, COALESCE(SUM(stake), 0) AS at_risk FROM bets WHERE status = 'pending'"
+        ).fetchone()
+    handle, paid = float(row["handle"]), float(row["paid_out"])
+    return {"settled_bets": int(row["bets"]), "handle": handle, "paid_out": paid, "house_profit": handle - paid,
+            "hold_pct": (handle - paid) / handle if handle else 0.0,
+            "open_bets": int(open_row["n"]), "open_stakes": float(open_row["at_risk"])}
+
+
 # ---------------------------------------------------------------- bets
 def insert_bet(conn: sqlite3.Connection, bet: dict) -> int:
     cols = list(bet.keys())

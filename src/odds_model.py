@@ -25,7 +25,8 @@ import numpy as np
 import pandas as pd
 
 VIG = 0.045                    # bookmaker overround on the moneyline
-STANDARD_JUICE = -110          # price on spreads and totals
+STANDARD_JUICE = -110          # price on spreads and totals (house edge ON)
+FAIR_PRICE = 100               # even money on spreads and totals (house edge OFF)
 RIDGE_LAMBDA = 2.0             # shrinks ratings toward 0 when a team has few games
 HALF_LIFE_DAYS = 45            # recent games matter more
 PRIOR_SEASON_WEIGHT = 0.35     # last season's games count ~1/3 as much
@@ -42,11 +43,11 @@ def american_to_implied_prob(odds: int) -> float:
     return 1 / american_to_decimal(odds)
 
 
-def prob_to_american(p: float) -> int:
-    """Convert a probability to American odds, rounded to the nearest 5."""
+def prob_to_american(p: float, step: int = 5) -> int:
+    """Convert a probability to American odds, rounded to the nearest `step`."""
     p = min(max(p, 0.01), 0.99)
     raw = -100 * p / (1 - p) if p >= 0.5 else 100 * (1 - p) / p
-    rounded = int(5 * round(raw / 5))
+    rounded = int(step * round(raw / step))
     if -100 < rounded < 100:  # -100..+100 are not quoted; snap to even money
         rounded = -100 if p >= 0.5 else 100
     return rounded
@@ -75,6 +76,7 @@ class TeamRatings:
     sigma: float                # std dev of margin residuals
     league_avg_pts: float
     n_games: int
+    sigma_total: float = 18.0   # std dev of game-total residuals (used for over/under probabilities)
 
 
 def _weights(games: pd.DataFrame, as_of: pd.Timestamp, current_season: int) -> np.ndarray:
@@ -138,9 +140,12 @@ def fit_ratings(completed: pd.DataFrame, as_of: pd.Timestamp | None = None) -> T
     bp = _ridge(Xp, yp, np.r_[w, w], n_free=2 * k)
     offense = pd.Series(league_avg + bp[:k], index=teams)
     defense = pd.Series(league_avg + bp[k:2 * k], index=teams)  # points allowed
+    fitted = Xp @ bp
+    total_resid = (fitted[:n] + fitted[n:] + 2 * league_avg) - (g["home_score"] + g["away_score"]).to_numpy()
+    sigma_total = float(np.sqrt(np.average(total_resid**2, weights=w)))
 
     return TeamRatings(ratings.sort_values(ascending=False), offense, defense,
-                       hca, sigma, league_avg, n)
+                       hca, sigma, league_avg, n, sigma_total)
 
 
 # ---------------------------------------------------------------- lines
@@ -157,24 +162,57 @@ def predict_game(r: TeamRatings, home: str, away: str, neutral: bool = False) ->
             "pred_home_pts": home_pts, "pred_away_pts": away_pts, "p_home": p_home}
 
 
-def make_lines(r: TeamRatings, home: str, away: str, neutral: bool = False) -> dict:
-    """The full betting menu for one game."""
+def make_lines(r: TeamRatings, home: str, away: str, neutral: bool = False, house_edge: bool = True) -> dict:
+    """The full betting menu for one game.
+
+    house_edge=True  -> realistic book: moneylines carry a 4.5% margin, spreads/totals -110.
+    house_edge=False -> fair book: moneylines are the model's true probabilities,
+                        spreads/totals pay even money (+100). Expected value = 0 for bettors.
+    """
     pred = predict_game(r, home, away, neutral)
     p_home = pred["p_home"]
     # Spread is quoted from the home team's view: -5.5 means home must win by 6+.
     home_spread = -round_half(pred["pred_margin"])
     if home_spread == 0:
         home_spread = -0.5 if p_home >= 0.5 else 0.5   # no pick'em, avoids pushes
+    if house_edge:
+        home_ml, away_ml = prob_to_american(p_home * (1 + VIG)), prob_to_american((1 - p_home) * (1 + VIG))
+        price = STANDARD_JUICE
+    else:
+        home_ml, away_ml = prob_to_american(p_home, step=1), prob_to_american(1 - p_home, step=1)
+        price = FAIR_PRICE
     return {
         **pred,
-        "home_ml": prob_to_american(p_home * (1 + VIG)),
-        "away_ml": prob_to_american((1 - p_home) * (1 + VIG)),
+        "home_ml": home_ml,
+        "away_ml": away_ml,
         "home_spread": home_spread,
         "away_spread": -home_spread,
-        "spread_odds": STANDARD_JUICE,
+        "spread_odds": price,
         "total": round_half(pred["pred_total"]),
-        "total_odds": STANDARD_JUICE,
+        "total_odds": price,
+        "house_edge": house_edge,
     }
+
+
+def model_probability(r: TeamRatings, lines: dict, market: str, side: str) -> float:
+    """The model's chance that a selection wins (ignoring pushes).
+
+    market: moneyline | spread | total;  side: home | away | over | under.
+    """
+    if market == "moneyline":
+        return lines["p_home"] if side == "home" else 1 - lines["p_home"]
+    if market == "spread":
+        # home covers if margin > -home_spread
+        p_home_cover = normal_cdf((lines["pred_margin"] + lines["home_spread"]) / r.sigma)
+        return p_home_cover if side == "home" else 1 - p_home_cover
+    p_over = normal_cdf((lines["pred_total"] - lines["total"]) / r.sigma_total)
+    return p_over if side == "over" else 1 - p_over
+
+
+def book_margin(odds_a: int, odds_b: int) -> float:
+    """House margin (overround) of a two-way market: implied probabilities minus 100%.
+    -110/-110 -> 0.048 (4.8%); +100/+100 -> 0.0 (fair)."""
+    return american_to_implied_prob(odds_a) + american_to_implied_prob(odds_b) - 1
 
 
 def backtest(completed: pd.DataFrame, min_train_games: int = 150, step_days: int = 7) -> pd.DataFrame:
