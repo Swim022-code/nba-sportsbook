@@ -94,3 +94,8 @@ def line(df: pd.DataFrame, x: str, y: str, title: str, labels: dict | None = Non
     if pct:
         fig.update_yaxes(tickformat=".0%")
     return _style(fig, title)
+
+
+def styled(fig: go.Figure, title: str | None = None) -> go.Figure:
+    """Apply the app's chart style to any Plotly figure."""
+    return _style(fig, title)

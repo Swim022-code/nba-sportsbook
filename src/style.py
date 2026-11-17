@@ -111,6 +111,49 @@ h1, h2, h3 {{ letter-spacing: -0.01em; }}
 .sb-house h4 {{ margin: 0 0 4px 0; color: #7a3e00; }}
 .sb-house p {{ margin: 0; color: #5b4a3a; font-size: 14px; }}
 
+/* player card */
+.sb-player {{ display: flex; align-items: center; gap: 18px; background: #fff; border: 1px solid {BORDER};
+  border-radius: 16px; padding: 14px 18px; box-shadow: 0 1px 4px rgba(16,24,40,.06); }}
+.sb-player img.head {{ width: 92px; height: 68px; object-fit: cover; border-radius: 10px; background: {SURFACE}; }}
+.sb-player img.logo {{ width: 34px; height: 34px; }}
+.sb-player .nm {{ font-size: 22px; font-weight: 800; color: {NAVY}; line-height: 1.1; }}
+.sb-player .sub {{ color: {MUTED}; font-size: 14px; }}
+.sb-player .stats {{ display: flex; gap: 22px; margin-left: auto; flex-wrap: wrap; }}
+.sb-player .stats div {{ text-align: center; }}
+.sb-player .stats b {{ display: block; font-size: 22px; color: #111827; }}
+.sb-player .stats span {{ font-size: 12px; color: {MUTED}; font-weight: 700; }}
+
+/* league-leader cards */
+.sb-leaders {{ display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }}
+.sb-leader {{ display: flex; align-items: center; gap: 12px; background: #fff; border: 1px solid {BORDER};
+  border-radius: 14px; padding: 10px 14px; box-shadow: 0 1px 3px rgba(16,24,40,.05); min-width: 0; }}
+.sb-leader img {{ width: 56px; height: 42px; object-fit: cover; border-radius: 8px; background: {SURFACE}; }}
+.sb-leader .k {{ font-size: 12px; font-weight: 700; color: {MUTED}; text-transform: uppercase; letter-spacing: .04em; }}
+.sb-leader .v {{ font-size: 22px; font-weight: 800; color: {NAVY}; line-height: 1.1; }}
+.sb-leader .n {{ font-size: 13px; font-weight: 600; color: #111827; white-space: nowrap; overflow: hidden;
+  text-overflow: ellipsis; }}
+@media (max-width: 900px) {{ .sb-leaders {{ grid-template-columns: 1fr 1fr; }} }}
+
+/* podium */
+.sb-podium {{ display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; align-items: end; }}
+.sb-podium .p {{ border-radius: 16px; padding: 14px; text-align: center; color: #111827;
+  border: 1px solid {BORDER}; background: #fff; box-shadow: 0 1px 4px rgba(16,24,40,.06); }}
+.sb-podium .p .medal {{ font-size: 30px; }}
+.sb-podium .p .u {{ font-weight: 800; font-size: 17px; }}
+.sb-podium .p .n {{ font-size: 13px; color: {MUTED}; }}
+.sb-podium .first {{ padding-top: 26px; background: linear-gradient(180deg, #fff8e1, #fff); border-color: #f2d27a; }}
+
+/* house ledgers */
+.sb-ledgers {{ display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }}
+.sb-ledger {{ border-radius: 16px; padding: 14px 18px; border: 1px solid {BORDER}; background: #fff; }}
+.sb-ledger.edge {{ background: linear-gradient(120deg, #fff7ed, #fff); border-color: #f5d0a4; }}
+.sb-ledger.fair {{ background: linear-gradient(120deg, #ecfdf3, #fff); border-color: #a8dcbc; }}
+.sb-ledger h4 {{ margin: 0 0 6px 0; }}
+.sb-ledger .big {{ font-size: 26px; font-weight: 800; }}
+.sb-ledger .row {{ display: flex; justify-content: space-between; font-size: 13px; color: {MUTED}; }}
+.sb-ledger.active {{ box-shadow: 0 0 0 3px rgba(19,49,92,.25); }}
+@media (max-width: 700px) {{ .sb-ledgers, .sb-podium {{ grid-template-columns: 1fr; }} }}
+
 .stTabs [data-baseweb="tab"] {{ font-weight: 600; }}
 @media (max-width: 700px) {{
   .sb-grid {{ grid-template-columns: 1fr 1fr 1fr; }}
@@ -201,14 +244,49 @@ def slip_summary(payout: float, profit: float, p_model: float, p_implied: float,
     )
 
 
-def house_panel(summary: dict, currency: str) -> None:
-    hold = summary["hold_pct"]
+def player_card(name: str, team: str, position: str | None, headshot: str | None, stats: dict[str, str]) -> None:
+    head = f'<img class="head" src="{escape(headshot)}" alt=""/>' if isinstance(headshot, str) and headshot else ""
+    cells = "".join(f"<div><b>{escape(v)}</b><span>{escape(k)}</span></div>" for k, v in stats.items())
     st.markdown(
-        f'<div class="sb-house"><h4>🏦 The House</h4><p>Every stake goes to the house when a bet is placed. '
-        f'Winners are paid back from it; losing stakes stay with the house. Across all players, the house has '
-        f'taken <b>{summary["handle"]:,.2f}</b> {currency} in settled bets, '
-        f'paid out <b>{summary["paid_out"]:,.2f}</b>, '
-        f'and kept <b>{summary["house_profit"]:,.2f}</b> ({hold:.1%} hold). '
-        f'<b>{summary["open_stakes"]:,.2f}</b> {currency} is riding on {summary["open_bets"]} open bet(s).</p></div>',
+        f'<div class="sb-player">{head}<img class="logo" src="{logo_url(team)}" alt="{escape(team)}"/>'
+        f'<div><div class="nm">{escape(name)}</div><div class="sub">{escape(team)} · {escape(position or "")}</div></div>'
+        f'<div class="stats">{cells}</div></div>',
         unsafe_allow_html=True,
     )
+
+
+def leader_cards(cards: list[dict]) -> None:
+    """cards: [{label, value, name, team, headshot}]"""
+    html = "".join(
+        f'<div class="sb-leader"><img src="{escape(c["headshot"] or logo_url(c["team"]))}" alt=""/>'
+        f'<div style="min-width:0"><div class="k">{escape(c["label"])}</div><div class="v">{escape(c["value"])}</div>'
+        f'<div class="n">{escape(c["name"])} · {escape(c["team"])}</div></div></div>' for c in cards)
+    st.markdown(f'<div class="sb-leaders">{html}</div>', unsafe_allow_html=True)
+
+
+def podium(rows: list[dict], currency: str) -> None:
+    """Top-3 leaderboard cards (rows sorted best first)."""
+    medals = ["🥇", "🥈", "🥉"]
+    order = [1, 0, 2] if len(rows) >= 3 else list(range(len(rows)))  # 2nd, 1st, 3rd like a podium
+    cards = []
+    for i in order:
+        r = rows[i]
+        cls = "p first" if i == 0 else "p"
+        cards.append(f'<div class="{cls}"><div class="medal">{medals[i]}</div><div class="u">{escape(r["username"])}</div>'
+                     f'<div class="n">{r["balance"]:,.2f} {currency} · net {r["net"]:+,.2f}</div></div>')
+    st.markdown(f'<div class="sb-podium">{"".join(cards)}</div>', unsafe_allow_html=True)
+
+
+def house_ledgers(edge: dict, fair: dict, active_book: str, currency: str) -> None:
+    """Side-by-side ledgers for the house-edge book and the fair book."""
+    def card(s: dict, cls: str, title: str) -> str:
+        color = GREEN_TEXT if s["house_profit"] >= 0 else RED
+        return (f'<div class="sb-ledger {cls}{" active" if s["book"] == active_book else ""}">'
+                f'<h4>{title}</h4><div class="big" style="color:{color}">{s["house_profit"]:+,.2f}</div>'
+                f'<div class="row"><span>House profit ({currency})</span><span>hold {s["hold_pct"]:.1%}</span></div>'
+                f'<div class="row"><span>Taken in (settled)</span><span>{s["handle"]:,.2f}</span></div>'
+                f'<div class="row"><span>Paid back to bettors</span><span>{s["paid_out"]:,.2f}</span></div>'
+                f'<div class="row"><span>Settled / open wagers</span><span>{s["settled_bets"]} / {s["open_bets"]}</span></div>'
+                f'<div class="row"><span>Riding on open wagers</span><span>{s["open_stakes"]:,.2f}</span></div></div>')
+    st.markdown(f'<div class="sb-ledgers">{card(edge, "edge", "🏦 House edge ON book")}'
+                f'{card(fair, "fair", "⚖️ Fair-odds book")}</div>', unsafe_allow_html=True)

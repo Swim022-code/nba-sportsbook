@@ -19,3 +19,4 @@ testpaths = ["tests"]
 # Page files contain long markdown/table strings shown to users.
 "views/*" = ["E501"]
 "tests/*" = ["E501"]
+"src/style.py" = ["E501"]   # HTML/CSS template strings
