@@ -68,7 +68,7 @@ pip install -r requirements.txt
 ```
 
 ### Add your Anthropic API key (enables the AI features)
-1. Create a key at <https://console.anthropic.com> (*API Keys → Create key*).
+1. Go to <https://platform.claude.com> (the Claude Console), add a few dollars of credit under *Settings → Billing*, then create a key under *Settings → API Keys*. If asked where your code runs, choose **Own machine**; you need the key that starts with `sk-ant-`.
 2. Copy the example secrets file and paste in your key:
    ```bash
    cp .streamlit/secrets.toml.example .streamlit/secrets.toml
@@ -154,7 +154,7 @@ Our missing-data check flagged it because those games have no box scores. Postpo
 |---|---|
 | SDK | `anthropic` (official Python SDK), streaming responses |
 | Default model | `claude-opus-5-5` (switchable in the sidebar: Opus / Sonnet / Haiku / custom ID) |
-| Grounding | Each prompt includes JSON computed by the app; the system prompt tells Claude to cite only those numbers |
+| Grounding | Each prompt includes JSON computed by the app (`src/ai_context.py`): how every model works, what the data does and doesn't cover, offense/defense ratings, upcoming games with lines and player props, all 30 teams' futures, league leaders, back-test results, both house ledgers and the user's open and settled bets. The system prompt tells Claude to cite only those numbers (~11k tokens per chat question) |
 | Features | (1) AI EDA report, (2) "Explain this with AI" on outliers, correlations and model evaluation, (3) game previews comparing model probability vs. price, (4) analyst chatbot with conversation history |
 | Robustness | Clear messages for a missing or invalid key, unknown model, rate limits, server and network errors, refusals and truncation; automatic retry with a simpler request if newer API options are rejected |
 
@@ -232,10 +232,11 @@ nba-sportsbook/
 │   ├── players.py            # ESPN box scores, player averages, prop lines
 │   ├── futures.py            # season + playoff Monte Carlo, championship odds
 │   ├── llm.py                # Claude API integration + prompts
+│   ├── ai_context.py         # the data the AI analyst is grounded in
 │   ├── charts.py             # Plotly chart builders (one consistent palette)
 │   ├── style.py              # page styling: banners, game cards, odds boxes, player cards, podium, ledgers
 │   └── ui.py                 # shared Streamlit helpers (sidebar, caching, streaming)
-├── tests/                    # pytest suite (50 tests; no network or API key needed)
+├── tests/                    # pytest suite (52 tests; no network or API key needed)
 ├── data/games_snapshot.csv   # offline data snapshot (games)
 ├── data/player_games_snapshot.csv  # player box scores (offline + fast first launch)
 ├── docs/                     # report, presentation plan, team workflow, screenshots
@@ -248,7 +249,7 @@ nba-sportsbook/
 
 ## 7. Testing & code quality
 ```bash
-pytest -q          # 50 unit tests: odds math, bet grading/settlement/voiding, parlays, props, futures,
+pytest -q          # 52 unit tests: odds math, bet grading/settlement/voiding, parlays, props, futures,
                    # house ledgers, leaderboard, database upgrade, season simulation, JSON parsing,
                    # model recovers known team strengths, EDA helpers, LLM prompts & error handling
 pip install ruff
