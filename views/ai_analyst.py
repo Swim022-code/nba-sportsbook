@@ -1,9 +1,10 @@
 """AI Analyst: an LLM-written EDA report and a data-aware chatbot."""
 
+import pandas as pd
 import streamlit as st
 
 from src import database as db
-from src import eda, llm, style
+from src import eda, futures, llm, players, style
 from src.betting import VOID_STATUSES, betting_summary
 from src.odds_model import make_lines
 from src.ui import (
@@ -11,7 +12,9 @@ from src.ui import (
     get_backtest,
     get_games,
     get_ratings,
+    get_title_sim,
     house_edge_on,
+    player_games,
     season_label,
     sidebar,
     stream_llm,
@@ -74,12 +77,23 @@ context = {
     "upcoming_games_with_lines": slate,
     "model_backtest": backtest_summary(get_backtest(games)),
 }
+title_board = futures.futures_odds(get_title_sim(games, ratings, int(seasons[0])), house_edge_on()).head(8)
+context["championship_futures"] = [
+    {"team": r.team, "title_prob": round(r.p_title, 3), "finals_prob": round(r.p_conf, 3),
+     "projected_wins": round(r.proj_wins, 1), "odds": int(r.odds)} for r in title_board.itertuples()]
+leaders = players.season_averages(player_games(), int(seasons[0]), min_games=5)
+if not leaders.empty:
+    context["player_leaders"] = {
+        label: leaders.nlargest(5, col)[["name", "team", col]].round(1).to_dict("records")
+        for label, col in (("points_per_game", "ppg"), ("rebounds_per_game", "rpg"), ("assists_per_game", "apg"))}
 if user:
     my_bets = db.load_bets(user)
+    my_parlays = db.load_parlays(user)
     context["user_betting"] = {
-        **betting_summary(my_bets), "balance": db.get_balance(user),
+        **betting_summary(pd.concat([my_bets, my_parlays], ignore_index=True)), "balance": db.get_balance(user),
+        "parlays": my_parlays.head(5)[["n_legs", "decimal_odds", "stake", "status"]].to_dict("records"),
         "recent_bets": my_bets.head(10)[["matchup", "bet_type", "selection", "line", "american_odds",
-                                         "stake", "status"]].to_dict("records"),
+                                         "player_name", "prop_stat", "stake", "status"]].to_dict("records"),
     }
 
 tab_report, tab_chat = st.tabs(["📝 AI-written EDA report", "💬 Ask the analyst"])
@@ -106,8 +120,8 @@ with tab_report:
 with tab_chat:
     st.markdown("Ask about teams, upcoming lines, the analysis, or your own bets. Try one:")
     examples = ["Which upcoming game has the closest odds?",
-                "What does the data say about 3-point shooting?",
-                "Who are the 3 best teams and why?",
+                "Who is the title favorite and why?",
+                "Who leads the league in scoring?",
                 "How am I doing with my bets?"]
     cols = st.columns(len(examples))
     clicks = [c.button(q, key=f"ex{i}", disabled=not llm.is_configured(), width="stretch")

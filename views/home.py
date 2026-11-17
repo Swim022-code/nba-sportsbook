@@ -65,10 +65,12 @@ with right:
 st.subheader("How to use this app")
 st.markdown(f"""
 1. **Log in** in the sidebar with any username. New accounts get **{db.STARTING_BALANCE:,.0f} {CURRENCY}**.
-2. **🏀 Sportsbook**: pick a game day, compare moneyline / spread / total odds, ask the AI for a preview, place a bet.
-3. **🎟️ My Bets**: track your bets. They settle automatically when ESPN reports the final score.
-4. **📊 Data Analysis**: the exploratory data analysis behind the odds, plus an honest test of the model.
-5. **🤖 AI Analyst**: an AI-written report on the data, and a chatbot for questions.
+2. **🏀 Sportsbook**: moneylines, spreads and totals for every game, **🎯 player props**, and **parlays**
+   (➕ add bets to the slip in the sidebar). Ask the AI for a matchup preview first.
+3. **🏆 Futures**: bet on the NBA champion, priced by 5,000 simulated seasons.
+4. **🎟️ My Bets** and **🥇 Leaderboard**: track results, see where you rank, and watch the house's ledgers.
+5. **⛹️ Players** and **📊 Data Analysis**: player stats and game logs, plus the EDA and model test behind the odds.
+6. **🤖 AI Analyst**: an AI-written report on the data, and a chatbot for questions.
 """)
 
 b1, b2 = st.columns(2)
@@ -78,6 +80,9 @@ with b1.expander("📖 Betting basics"):
 - **Spread**: the favorite must win by more than the line. `BOS -5.5` wins only if Boston wins by 6+.
 - **Total (Over/Under)**: will the combined score be over or under the line?
 - Landing exactly on the line is a **push** (stake refunded). Postponed games are **void** (stake refunded).
+- **Parlay**: 2-8 picks from different games in one bet. The odds multiply, and every leg must win.
+- **Player prop**: over/under on one player's points, rebounds, assists or 3-pointers. A player who sits → void.
+- **Futures**: a long-term bet (e.g. the champion), settled when the season ends.
 - The house adds a small margin (the "vig"), so implied probabilities add up to more than 100%.
 """)
 with b2.expander("⚙️ How it works (the data pipeline)"):
